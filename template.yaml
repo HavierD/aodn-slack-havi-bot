@@ -1,0 +1,192 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: >-
+  aodn-slack-havi-bot
+Transform:
+- AWS::Serverless-2016-10-31
+
+Parameters:
+  SlackBotToken:
+    Type: String
+    Description: Slack Bot OAuth Token (xoxb-...)
+    NoEcho: true
+  Environment:
+    Type: String
+    Description: Deployment environment
+    Default: dev
+    AllowedValues:
+      - dev
+      - staging
+      - prod
+
+# Resources declares the AWS resources that you want to include in the stack
+# https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/resources-section-structure.html
+Resources:
+  # API Gateway
+  HavibotApi:
+    Type: AWS::Serverless::Api
+    Properties:
+      StageName: Prod
+      Description: API Gateway for AODN Slack Havi Bot
+      Tags:
+        Project: aodn-slack-havi-bot
+        Environment: !Ref Environment
+        ManagedBy: SAM
+        Team: AODN
+        Application: HaviBot
+
+  # Each Lambda function is defined by properties:
+  # https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
+
+  # This is a Lambda function config associated with the source code: get-all-items.js
+  getAllItemsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: src/handlers/get-all-items.getAllItemsHandler
+      Runtime: nodejs22.x
+      Architectures:
+      - x86_64
+      MemorySize: 128
+      Timeout: 100
+      Description: A simple example includes a HTTP get method to get all items 
+        from a DynamoDB table.
+      Policies:
+        # Give Create/Read/Update/Delete Permissions to the HavibotEventsTable
+      - DynamoDBCrudPolicy:
+          TableName: !Ref HavibotEventsTable
+      Environment:
+        Variables:
+          # Make table name accessible as environment variable from function code during execution
+          SAMPLE_TABLE: !Ref HavibotEventsTable
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            RestApiId: !Ref HavibotApi
+            Path: /
+            Method: GET
+  # Each Lambda function is defined by properties:
+  # https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
+
+  # This is a Lambda function config associated with the source code: get-by-id.js
+  getByIdFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: src/handlers/get-by-id.getByIdHandler
+      Runtime: nodejs22.x
+      Architectures:
+      - x86_64
+      MemorySize: 128
+      Timeout: 100
+      Description: A simple example includes a HTTP get method to get one item 
+        by id from a DynamoDB table.
+      Policies:
+        # Give Create/Read/Update/Delete Permissions to the HavibotEventsTable
+      - DynamoDBCrudPolicy:
+          TableName: !Ref HavibotEventsTable
+      Environment:
+        Variables:
+          # Make table name accessible as environment variable from function code during execution
+          SAMPLE_TABLE: !Ref HavibotEventsTable
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            RestApiId: !Ref HavibotApi
+            Path: /{id}
+            Method: GET
+  # Each Lambda function is defined by properties:
+  # https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
+
+  # This is a Lambda function config associated with the source code: put-item.js
+  putItemFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: src/handlers/put-item.putItemHandler
+      Runtime: nodejs22.x
+      Architectures:
+      - x86_64
+      MemorySize: 128
+      Timeout: 100
+      Description: A simple example includes a HTTP post method to add one item 
+        to a DynamoDB table.
+      Policies:
+        # Give Create/Read/Update/Delete Permissions to the HavibotEventsTable
+      - DynamoDBCrudPolicy:
+          TableName: !Ref HavibotEventsTable
+      Environment:
+        Variables:
+          # Make table name accessible as environment variable from function code during execution
+          SAMPLE_TABLE: !Ref HavibotEventsTable
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            RestApiId: !Ref HavibotApi
+            Path: /
+            Method: POST
+  # Simple syntax to create a DynamoDB table with a single attribute primary key, more in
+  # https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlesssimpletable
+
+  # Slack Events API handler
+  slackEventsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: src/handlers/slack-events.slackEventsHandler
+      Runtime: nodejs22.x
+      Architectures:
+      - x86_64
+      MemorySize: 128
+      Timeout: 10
+      Description: Handles Slack Events API requests including app_home_opened
+      Environment:
+        Variables:
+          SLACK_BOT_TOKEN: !Ref SlackBotToken
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            RestApiId: !Ref HavibotApi
+            Path: /slack/events
+            Method: POST
+
+  # DynamoDB table to store item: {id: &lt;ID&gt;, name: &lt;NAME&gt;}
+  HavibotEventsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: aodn-slack-havibot-events
+      AttributeDefinitions:
+        - AttributeName: id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: id
+          KeyType: HASH
+      ProvisionedThroughput:
+        ReadCapacityUnits: 2
+        WriteCapacityUnits: 2
+      Tags:
+        - Key: Project
+          Value: aodn-slack-havi-bot
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: ManagedBy
+          Value: SAM
+        - Key: Team
+          Value: AODN
+        - Key: Application
+          Value: HaviBot
+
+Outputs:
+  WebEndpoint:
+    Description: API Gateway endpoint URL for Prod stage
+    Value: !Sub "https://${HavibotApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}/Prod/"
+# More info about Globals: https://github.com/awslabs/serverless-application-model/blob/master/docs/globals.rst
+Globals:
+  Function:
+    LoggingConfig:
+      LogFormat: JSON
+    Tags:
+      Project: aodn-slack-havi-bot
+      Environment: !Ref Environment
+      ManagedBy: SAM
+      Team: AODN
+      Application: HaviBot

@@ -1,0 +1,9 @@
+{
+  "httpMethod": "POST",
+  "path": "/slack/events",
+  "headers": {
+    "Content-Type": "application/json"
+  },
+  "body": "{\"type\":\"event_callback\",\"event\":{\"type\":\"app_home_opened\",\"user\":\"U1234567890\",\"channel\":\"D1234567890\",\"tab\":\"home\"}}"
+}
+

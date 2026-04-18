@@ -1,0 +1,9 @@
+{
+  "httpMethod": "POST",
+  "path": "/slack/events",
+  "headers": {
+    "Content-Type": "application/json"
+  },
+  "body": "{\"type\":\"url_verification\",\"challenge\":\"test-challenge-string\"}"
+}
+

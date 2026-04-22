@@ -1,0 +1,8 @@
+{
+  "httpMethod": "POST",
+  "path": "/slack/interactivity",
+  "headers": {
+    "Content-Type": "application/x-www-form-urlencoded"
+  },
+  "body": "payload=%7B%22type%22%3A%22view_submission%22%2C%22user%22%3A%7B%22id%22%3A%22U1234567890%22%2C%22username%22%3A%22testuser%22%7D%2C%22view%22%3A%7B%22callback_id%22%3A%22add_event%22%2C%22state%22%3A%7B%22values%22%3A%7B%22start_date_block%22%3A%7B%22start_date%22%3A%7B%22selected_date%22%3A%222026-04-20%22%7D%7D%2C%22start_time_block%22%3A%7B%22start_time%22%3A%7B%22selected_time%22%3A%2209%3A00%22%7D%7D%2C%22end_date_block%22%3A%7B%22end_date%22%3A%7B%22selected_date%22%3A%222026-04-20%22%7D%7D%2C%22end_time_block%22%3A%7B%22end_time%22%3A%7B%22selected_time%22%3A%2217%3A00%22%7D%7D%2C%22status_type_block%22%3A%7B%22status_type%22%3A%7B%22selected_option%22%3A%7B%22value%22%3A%22working_remotely%22%7D%7D%7D%2C%22is_recurring_block%22%3A%7B%22is_recurring%22%3A%7B%22selected_option%22%3A%7B%22value%22%3A%22one_time%22%7D%7D%7D%2C%22send_message_block%22%3A%7B%22send_message%22%3A%7B%22selected_options%22%3A%5B%7B%22value%22%3A%22send_message%22%7D%5D%7D%7D%7D%7D%7D%7D"
+}

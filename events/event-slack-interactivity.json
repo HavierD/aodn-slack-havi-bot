@@ -1,0 +1,8 @@
+{
+  "httpMethod": "POST",
+  "path": "/slack/interactivity",
+  "headers": {
+    "Content-Type": "application/x-www-form-urlencoded"
+  },
+  "body": "payload=%7B%22type%22%3A%22block_actions%22%2C%22user%22%3A%7B%22id%22%3A%22U1234567890%22%2C%22username%22%3A%22testuser%22%7D%2C%22trigger_id%22%3A%22123456.789012.abcdef%22%2C%22actions%22%3A%5B%7B%22action_id%22%3A%22add_scheduled_event%22%2C%22type%22%3A%22button%22%7D%5D%7D"
+}

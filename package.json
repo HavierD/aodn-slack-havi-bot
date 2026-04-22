@@ -24,6 +24,10 @@
         "moduleFileExtensions": [
             "mjs",
             "js"
+        ],
+        "testPathIgnorePatterns": [
+            "/node_modules/",
+            "/.aws-sam/"
         ]
     }
 }

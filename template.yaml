@@ -33,6 +33,7 @@ Resources:
         ManagedBy: SAM
         Team: AODN
         Application: HaviBot
+        AutoOff: "False"
 
   # Each Lambda function is defined by properties:
   # https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
@@ -137,12 +138,17 @@ Resources:
       - x86_64
       MemorySize: 128
       Timeout: 10
-      Description: Handles Slack Events API requests including app_home_opened
+      Description: Handles Slack Events API requests including app_home_opened and interactivity
+      Policies:
+        # Give Create/Read/Update/Delete Permissions to the HavibotEventsTable
+        - DynamoDBCrudPolicy:
+            TableName: !Ref HavibotEventsTable
       Environment:
         Variables:
           SLACK_BOT_TOKEN: !Ref SlackBotToken
+          SAMPLE_TABLE: !Ref HavibotEventsTable
       Events:
-        Api:
+        SlackEvents:
           Type: Api
           Properties:
             RestApiId: !Ref HavibotApi
@@ -174,6 +180,8 @@ Resources:
           Value: AODN
         - Key: Application
           Value: HaviBot
+        - Key: AutoOff
+          Value: "False"
 
 Outputs:
   WebEndpoint:
@@ -190,3 +198,4 @@ Globals:
       ManagedBy: SAM
       Team: AODN
       Application: HaviBot
+      AutoOff: "False"

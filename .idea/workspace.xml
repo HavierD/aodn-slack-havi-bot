@@ -6,17 +6,7 @@
   <component name="ChangeListManager">
     <list default="true" id="5904877a-db57-400c-a68e-22562a204ca4" name="Changes" comment="first commit">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/README.md" beforeDir="false" afterPath="$PROJECT_DIR$/README.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/__tests__/unit/handlers/slack-events.test.mjs" beforeDir="false" afterPath="$PROJECT_DIR$/__tests__/unit/handlers/slack-events.test.mjs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/events/event-slack-interactivity.json" beforeDir="false" afterPath="$PROJECT_DIR$/events/event-slack-interactivity.json" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/events/event-slack-modal-submission.json" beforeDir="false" afterPath="$PROJECT_DIR$/events/event-slack-modal-submission.json" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/package.json" beforeDir="false" afterPath="$PROJECT_DIR$/package.json" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/handlers/slack-events.mjs" beforeDir="false" afterPath="$PROJECT_DIR$/src/handlers/slack-events.mjs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/handlers/slack-interactivity.mjs" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/lib/scheduled-events-db.mjs" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/lib/slack-api.mjs" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/lib/view-builders.mjs" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/template.yaml" beforeDir="false" afterPath="$PROJECT_DIR$/template.yaml" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -29,12 +19,12 @@
     </persistenceIdMap>
   </component>
   <component name="CopilotUserSelectedChatMode">
-    <option name="chatModeId" value="Ask" />
+    <option name="chatModeId" value="Agent" />
   </component>
   <component name="CopilotUserSelectedModel">
     <selectedModels>
-      <entry key="agent-panel" value="GPT-5 mini" />
-      <entry key="chat-panel" value="GPT-5 mini" />
+      <entry key="agent-panel" value="Claude Sonnet 4.6" />
+      <entry key="chat-panel" value="Claude Sonnet 4.6" />
     </selectedModels>
   </component>
   <component name="EmbeddingIndexingInfo">
@@ -149,6 +139,7 @@
       <workItem from="1776499044003" duration="11725000" />
       <workItem from="1776854134205" duration="586000" />
       <workItem from="1776856734353" duration="2429000" />
+      <workItem from="1776860426590" duration="2549000" />
     </task>
     <task id="LOCAL-00001" summary="first commit">
       <option name="closed" value="true" />

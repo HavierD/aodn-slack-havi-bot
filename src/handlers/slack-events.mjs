@@ -603,8 +603,8 @@ async function handleInteractiveAction(payload) {
         console.info("=== INTERACTIVE ACTION RECEIVED ===");
         console.info("Action ID:", actionId, "User:", userId);
 
-        // Add one-time event
-        if (actionId === "add_one_time_event") {
+        // Add one-time event (also handle legacy add_scheduled_event)
+        if (actionId === "add_one_time_event" || actionId === "add_scheduled_event") {
             await openModal(triggerId, buildOneTimeEventModal());
             return;
         }

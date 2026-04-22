@@ -105,7 +105,65 @@ describe('Test slackEventsHandler', () => {
         expect(result.statusCode).toBe(400);
     });
 
-    it('should handle add_scheduled_event button click', async () => {
+    it('should handle add_one_time_event button click', async () => {
+        // Mock successful Slack modal open
+        global.fetch.mockResolvedValueOnce({
+            json: async () => ({ ok: true })
+        });
+
+        const payload = {
+            type: 'block_actions',
+            user: { id: 'U1234567890' },
+            trigger_id: '123456.789012.abcdef',
+            actions: [{ action_id: 'add_one_time_event', type: 'button' }]
+        };
+
+        const event = {
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: `payload=${encodeURIComponent(JSON.stringify(payload))}`
+        };
+
+        const result = await slackEventsHandler(event);
+
+        expect(result.statusCode).toBe(200);
+        expect(global.fetch).toHaveBeenCalledWith(
+            'https://slack.com/api/views.open',
+            expect.objectContaining({
+                method: 'POST'
+            })
+        );
+    });
+
+    it('should handle add_recurring_event button click', async () => {
+        // Mock successful Slack modal open
+        global.fetch.mockResolvedValueOnce({
+            json: async () => ({ ok: true })
+        });
+
+        const payload = {
+            type: 'block_actions',
+            user: { id: 'U1234567890' },
+            trigger_id: '123456.789012.abcdef',
+            actions: [{ action_id: 'add_recurring_event', type: 'button' }]
+        };
+
+        const event = {
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: `payload=${encodeURIComponent(JSON.stringify(payload))}`
+        };
+
+        const result = await slackEventsHandler(event);
+
+        expect(result.statusCode).toBe(200);
+        expect(global.fetch).toHaveBeenCalledWith(
+            'https://slack.com/api/views.open',
+            expect.objectContaining({
+                method: 'POST'
+            })
+        );
+    });
+
+    it('should handle legacy add_scheduled_event button click (backward compat)', async () => {
         // Mock successful Slack modal open
         global.fetch.mockResolvedValueOnce({
             json: async () => ({ ok: true })
@@ -134,7 +192,7 @@ describe('Test slackEventsHandler', () => {
         );
     });
 
-    it('should handle modal submission for adding event', async () => {
+    it('should handle modal submission for adding one-time event', async () => {
         // Mock successful DynamoDB put
         ddbMock.on(PutCommand).resolves({});
         // Mock successful home view publish
@@ -146,16 +204,51 @@ describe('Test slackEventsHandler', () => {
             type: 'view_submission',
             user: { id: 'U1234567890' },
             view: {
-                callback_id: 'add_event',
+                callback_id: 'add_one_time_event',
                 state: {
                     values: {
                         start_date_block: { start_date: { selected_date: '2026-04-20' } },
-                        start_time_block: { start_time: { selected_time: '09:00' } },
+                        start_time_block: { start_time: { selected_time: '08:00' } },
                         end_date_block: { end_date: { selected_date: '2026-04-20' } },
                         end_time_block: { end_time: { selected_time: '17:00' } },
                         status_type_block: { status_type: { selected_option: { value: 'working_remotely' } } },
-                        is_recurring_block: { is_recurring: { selected_option: { value: 'one_time' } } },
                         send_message_block: { send_message: { selected_options: [{ value: 'send_message' }] } }
+                    }
+                }
+            }
+        };
+
+        const event = {
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: `payload=${encodeURIComponent(JSON.stringify(payload))}`
+        };
+
+        const result = await slackEventsHandler(event);
+
+        expect(result.statusCode).toBe(200);
+    });
+
+    it('should handle modal submission for adding recurring event', async () => {
+        // Mock successful DynamoDB put
+        ddbMock.on(PutCommand).resolves({});
+        // Mock successful home view publish
+        global.fetch.mockResolvedValueOnce({
+            json: async () => ({ ok: true })
+        });
+
+        const payload = {
+            type: 'view_submission',
+            user: { id: 'U1234567890' },
+            view: {
+                callback_id: 'add_recurring_event',
+                state: {
+                    values: {
+                        recurrence_interval_block: { recurrence_interval: { selected_option: { value: 'every_week' } } },
+                        recurring_date_block: { recurring_date: { selected_date: '2026-04-20' } },
+                        start_time_block: { start_time: { selected_time: '08:00' } },
+                        end_time_block: { end_time: { selected_time: '17:00' } },
+                        status_type_block: { status_type: { selected_option: { value: 'vacationing' } } },
+                        send_message_block: { send_message: { selected_options: [] } }
                     }
                 }
             }
@@ -183,10 +276,7 @@ describe('Test slackEventsHandler', () => {
             type: 'block_actions',
             user: { id: 'U1234567890' },
             trigger_id: '123456.789012.abcdef',
-            actions: [{
-                action_id: 'event_overflow_evt_123',
-                selected_option: { value: 'remove_evt_123' }
-            }]
+            actions: [{ action_id: 'event_overflow_evt_123', selected_option: { value: 'remove_evt_123' } }]
         };
 
         const event = {
@@ -199,19 +289,15 @@ describe('Test slackEventsHandler', () => {
         expect(result.statusCode).toBe(200);
     });
 
-    it('should handle edit event action', async () => {
+    it('should handle edit event action (one-time)', async () => {
         // Mock existing event in DynamoDB
         ddbMock.on(GetCommand).resolves({
             Item: {
-                id: 'evt_123',
-                userId: 'U1234567890',
-                startDate: '2026-04-20',
-                startTime: '09:00',
-                endDate: '2026-04-20',
-                endTime: '17:00',
-                statusType: 'working_remotely',
-                isRecurring: false,
-                sendMessage: true
+                id: 'evt_123', userId: 'U1234567890',
+                eventType: 'one_time',
+                startDate: '2026-04-20', startTime: '09:00',
+                endDate: '2026-04-20', endTime: '17:00',
+                statusType: 'working_remotely', sendMessage: true
             }
         });
         // Mock successful modal open
@@ -223,10 +309,45 @@ describe('Test slackEventsHandler', () => {
             type: 'block_actions',
             user: { id: 'U1234567890' },
             trigger_id: '123456.789012.abcdef',
-            actions: [{
-                action_id: 'event_overflow_evt_123',
-                selected_option: { value: 'edit_evt_123' }
-            }]
+            actions: [{ action_id: 'event_overflow_evt_123', selected_option: { value: 'edit_evt_123' } }]
+        };
+
+        const event = {
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: `payload=${encodeURIComponent(JSON.stringify(payload))}`
+        };
+
+        const result = await slackEventsHandler(event);
+
+        expect(result.statusCode).toBe(200);
+        expect(global.fetch).toHaveBeenCalledWith(
+            'https://slack.com/api/views.open',
+            expect.objectContaining({
+                method: 'POST'
+            })
+        );
+    });
+
+    it('should handle edit event action (recurring)', async () => {
+        // Mock existing event in DynamoDB
+        ddbMock.on(GetCommand).resolves({
+            Item: {
+                id: 'evt_456', userId: 'U1234567890',
+                eventType: 'recurring', recurrenceInterval: 'every_week',
+                date: '2026-04-20', startTime: '08:00', endTime: '17:00',
+                statusType: 'vacationing', sendMessage: false
+            }
+        });
+        // Mock successful modal open
+        global.fetch.mockResolvedValueOnce({
+            json: async () => ({ ok: true })
+        });
+
+        const payload = {
+            type: 'block_actions',
+            user: { id: 'U1234567890' },
+            trigger_id: '123456.789012.abcdef',
+            actions: [{ action_id: 'event_overflow_evt_456', selected_option: { value: 'edit_evt_456' } }]
         };
 
         const event = {

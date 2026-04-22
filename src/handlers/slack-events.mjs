@@ -278,7 +278,6 @@ function buildOneTimeEventModal(existingEvent = null) {
         type: "timepicker",
         action_id: "start_time",
         placeholder: { type: "plain_text", text: "Select start time" },
-        increment_by: 15,
         initial_time: (isEdit && existingEvent.startTime) ? existingEvent.startTime : "08:00"
     };
 
@@ -293,7 +292,6 @@ function buildOneTimeEventModal(existingEvent = null) {
         type: "timepicker",
         action_id: "end_time",
         placeholder: { type: "plain_text", text: "Select end time" },
-        increment_by: 15,
         initial_time: (isEdit && existingEvent.endTime) ? existingEvent.endTime : "17:00"
     };
 
@@ -377,7 +375,6 @@ function buildRecurringEventModal(existingEvent = null, selectedIntervalValue = 
         type: "timepicker",
         action_id: "start_time",
         placeholder: { type: "plain_text", text: "Select start time" },
-        increment_by: 15,
         initial_time: (isEdit && existingEvent.startTime) ? existingEvent.startTime : "08:00"
     };
 
@@ -385,7 +382,6 @@ function buildRecurringEventModal(existingEvent = null, selectedIntervalValue = 
         type: "timepicker",
         action_id: "end_time",
         placeholder: { type: "plain_text", text: "Select end time" },
-        increment_by: 15,
         initial_time: (isEdit && existingEvent.endTime) ? existingEvent.endTime : "17:00"
     };
 

@@ -1,7 +1,7 @@
 // Slack Events API handler for app_home_opened event and interactivity
 
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
-import { DynamoDBDocumentClient, ScanCommand, PutCommand, DeleteCommand, GetCommand } from '@aws-sdk/lib-dynamodb';
+import { DynamoDBDocumentClient, ScanCommand, QueryCommand, PutCommand, DeleteCommand, GetCommand } from '@aws-sdk/lib-dynamodb';
 
 const client = new DynamoDBClient({});
 const ddbDocClient = DynamoDBDocumentClient.from(client);
@@ -62,15 +62,31 @@ function getNextDates(weeksInterval, count = 4, fromDateStr = null) {
  */
 async function getScheduledEvents(userId) {
     try {
-        const params = {
+        // Try to use the UserIdStartDateIndex GSI for efficient query by userId
+        const queryParams = {
             TableName: tableName,
-            FilterExpression: "userId = :userId",
-            ExpressionAttributeValues: { ":userId": userId }
+            IndexName: 'UserIdStartDateIndex',
+            KeyConditionExpression: 'userId = :userId',
+            ExpressionAttributeValues: { ':userId': userId },
+            // Return results ordered by startDate ascending
+            ScanIndexForward: true
         };
-        const data = await ddbDocClient.send(new ScanCommand(params));
-        return data.Items || [];
+
+        const qres = await ddbDocClient.send(new QueryCommand(queryParams));
+        if (qres.Items && qres.Items.length > 0) {
+            return qres.Items;
+        }
+
+        // Fallback to Scan if index returns no items (covers legacy items without startDate)
+        const scanParams = {
+            TableName: tableName,
+            FilterExpression: 'userId = :userId',
+            ExpressionAttributeValues: { ':userId': userId }
+        };
+        const sres = await ddbDocClient.send(new ScanCommand(scanParams));
+        return sres.Items || [];
     } catch (err) {
-        console.error("Error fetching scheduled events:", err);
+        console.error('Error fetching scheduled events:', err);
         return [];
     }
 }

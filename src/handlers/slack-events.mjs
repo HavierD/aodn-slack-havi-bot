@@ -724,6 +724,37 @@ async function handleModalSubmission(payload) {
  * Lambda handler for Slack Events API
  */
 export const slackEventsHandler = async (event) => {
+    // Normalize API Gateway v2 (HTTP API) events to the shape expected by the handler
+    function normalizeApiGatewayEvent(evt) {
+        // If it's already v1 or not an API Gateway v2 event, return as-is
+        if (!evt || evt.version !== '2.0' || !evt.requestContext || !evt.requestContext.http) return evt;
+
+        // Build a v1-like wrapper with the fields our code expects
+        const normalized = {
+            // body may be base64-encoded already depending on payload
+            body: evt.body,
+            isBase64Encoded: evt.isBase64Encoded || false,
+            headers: evt.headers || {},
+            // keep original requestContext (in case other code needs it)
+            requestContext: evt.requestContext,
+            // copy through any other useful top-level fields
+            rawEvent: evt
+        };
+
+        // Map common requestContext fields for convenience
+        if (evt.requestContext && evt.requestContext.http) {
+            normalized.httpMethod = evt.requestContext.http.method;
+            normalized.path = evt.requestContext.http.path || evt.rawPath;
+        }
+
+        // Map pathParameters and queryStringParameters if present
+        if (evt.pathParameters) normalized.pathParameters = evt.pathParameters;
+        if (evt.queryStringParameters) normalized.queryStringParameters = evt.queryStringParameters;
+
+        return normalized;
+    }
+
+    event = normalizeApiGatewayEvent(event);
     console.info("Received Slack event:", JSON.stringify(event));
 
     let rawBody = event.body || "";

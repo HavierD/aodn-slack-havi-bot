@@ -23,10 +23,10 @@ Parameters:
 Resources:
   # API Gateway
   HavibotApi:
-    Type: AWS::Serverless::Api
+    Type: AWS::Serverless::HttpApi
     Properties:
       StageName: Prod
-      Description: API Gateway for AODN Slack Havi Bot
+      Description: HTTP API for AODN Slack Havi Bot
       Tags:
         Project: aodn-slack-havi-bot
         Environment: !Ref Environment
@@ -60,9 +60,9 @@ Resources:
           SAMPLE_TABLE: !Ref HavibotEventsTable
       Events:
         Api:
-          Type: Api
+          Type: HttpApi
           Properties:
-            RestApiId: !Ref HavibotApi
+            ApiId: !Ref HavibotApi
             Path: /
             Method: GET
   # Each Lambda function is defined by properties:
@@ -90,9 +90,9 @@ Resources:
           SAMPLE_TABLE: !Ref HavibotEventsTable
       Events:
         Api:
-          Type: Api
+          Type: HttpApi
           Properties:
-            RestApiId: !Ref HavibotApi
+            ApiId: !Ref HavibotApi
             Path: /{id}
             Method: GET
   # Each Lambda function is defined by properties:
@@ -120,9 +120,9 @@ Resources:
           SAMPLE_TABLE: !Ref HavibotEventsTable
       Events:
         Api:
-          Type: Api
+          Type: HttpApi
           Properties:
-            RestApiId: !Ref HavibotApi
+            ApiId: !Ref HavibotApi
             Path: /
             Method: POST
   # Simple syntax to create a DynamoDB table with a single attribute primary key, more in
@@ -149,11 +149,28 @@ Resources:
           SAMPLE_TABLE: !Ref HavibotEventsTable
       Events:
         SlackEvents:
-          Type: Api
+          Type: HttpApi
           Properties:
-            RestApiId: !Ref HavibotApi
+            ApiId: !Ref HavibotApi
             Path: /slack/events
             Method: POST
+
+  processScheduleFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: src/handlers/process-schedule.processScheduleHandler
+      Runtime: nodejs22.x
+      Architectures:
+      - x86_64
+      MemorySize: 128
+      Timeout: 60
+      Description: "Process scheduled events using GSIs (queries by start/end date/time)"
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref HavibotEventsTable
+      Environment:
+        Variables:
+          SAMPLE_TABLE: !Ref HavibotEventsTable
 
   # DynamoDB table to store item: {id: &lt;ID&gt;, name: &lt;NAME&gt;}
   HavibotEventsTable:

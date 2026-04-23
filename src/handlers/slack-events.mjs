@@ -172,8 +172,8 @@ function buildHomeViewBlocks(events) {
             const isRecurring = event.eventType === "recurring";
             const statusEmoji = event.statusType === "working_remotely" ? ":house:"
                 : event.statusType === "vacationing" ? ":palm_tree:" : ":face_with_thermometer:";
-            const typeText = isRecurring
-                ? `🔁 Recurring (${getRecurrenceText(event.recurrenceInterval)})\n*From:* ${formatDateTime(event.date, event.startTime)} — ${event.endTime || "17:00"}`
+                            const typeText = isRecurring
+                                ? `🔁 Recurring (${getRecurrenceText(event.recurrenceInterval)})\n*From:* ${formatDateTime(event.startDate || event.date, event.startTime)} — ${event.endTime || "17:00"}`
                 : `📅 One-time\n*Start:* ${formatDateTime(event.startDate, event.startTime)}\n*End:* ${formatDateTime(event.endDate, event.endTime)}`;
             const notifyText = event.sendMessage ? `\n💬 Will notify ${NOTIFICATION_CHANNEL}` : "";
 
@@ -346,7 +346,8 @@ function buildRecurringEventModal(existingEvent = null, selectedIntervalValue = 
 
     // Determine current values (for pre-population or dispatch_action context)
     const currentInterval = selectedIntervalValue || (isEdit ? existingEvent.recurrenceInterval : null);
-    const currentDate = startDateValue || (isEdit ? existingEvent.date : null);
+    // Support legacy items that used `date`; prefer `startDate` for recurring items
+    const currentDate = startDateValue || (isEdit ? (existingEvent.startDate || existingEvent.date) : null);
 
     const recurrenceSelect = {
         type: "static_select",
@@ -367,7 +368,7 @@ function buildRecurringEventModal(existingEvent = null, selectedIntervalValue = 
     const datePicker = {
         type: "datepicker",
         action_id: "recurring_date",
-        placeholder: { type: "plain_text", text: "Select start date" }
+        placeholder: { type: "plain_text", text: "Select date" }
     };
     if (currentDate) datePicker.initial_date = currentDate;
 
@@ -395,7 +396,7 @@ function buildRecurringEventModal(existingEvent = null, selectedIntervalValue = 
         {
             type: "input", block_id: "recurring_date_block",
             element: datePicker,
-            label: { type: "plain_text", text: "Starting Date" }
+            label: { type: "plain_text", text: "Date" }
         },
         {
             type: "input", block_id: "start_time_block",
@@ -547,9 +548,12 @@ function parseOneTimeModalValues(values) {
  * Parse recurring modal submission values
  */
 function parseRecurringModalValues(values) {
+    const date = values.recurring_date_block?.recurring_date?.selected_date;
     return {
         recurrenceInterval: values.recurrence_interval_block?.recurrence_interval?.selected_option?.value,
-        date: values.recurring_date_block?.recurring_date?.selected_date,
+        // For recurring events, store the date as both startDate and endDate
+        startDate: date,
+        endDate: date,
         startTime: values.start_time_block?.start_time?.selected_time,
         endTime: values.end_time_block?.end_time?.selected_time,
         statusType: values.status_type_block?.status_type?.selected_option?.value,

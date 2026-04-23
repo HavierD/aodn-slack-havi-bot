@@ -6,6 +6,7 @@
   <component name="ChangeListManager">
     <list default="true" id="5904877a-db57-400c-a68e-22562a204ca4" name="Changes" comment="bug fixing">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/README.md" beforeDir="false" afterPath="$PROJECT_DIR$/README.md" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/handlers/slack-events.mjs" beforeDir="false" afterPath="$PROJECT_DIR$/src/handlers/slack-events.mjs" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
@@ -142,6 +143,7 @@
       <workItem from="1776860426590" duration="6114000" />
       <workItem from="1776909761640" duration="1379000" />
       <workItem from="1776916897524" duration="2904000" />
+      <workItem from="1776920127435" duration="666000" />
     </task>
     <task id="LOCAL-00001" summary="first commit">
       <option name="closed" value="true" />

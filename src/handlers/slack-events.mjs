@@ -40,13 +40,19 @@ const NOTIFICATION_CHANNEL = "#abc";
  * Calculate next N occurrence dates from a base date given interval in weeks
  */
 function getNextDates(weeksInterval, count = 4, fromDateStr = null) {
+    // Return formatted dates with day-of-week: YYYY-MM-DD (Mon)
     const base = fromDateStr ? new Date(`${fromDateStr}T00:00:00`) : new Date();
     base.setHours(0, 0, 0, 0);
+    const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
     const dates = [];
     for (let i = 1; i <= count; i++) {
         const d = new Date(base);
         d.setDate(d.getDate() + i * weeksInterval * 7);
-        dates.push(d.toISOString().substring(0, 10));
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, '0');
+        const dd = String(d.getDate()).padStart(2, '0');
+        const day = dayNames[d.getDay()];
+        dates.push(`${y}-${m}-${dd} (${day})`);
     }
     return dates;
 }
@@ -386,54 +392,43 @@ function buildRecurringEventModal(existingEvent = null, selectedIntervalValue = 
         initial_time: (isEdit && existingEvent.endTime) ? existingEvent.endTime : "17:00"
     };
 
-    const blocks = [
-        {
-            type: "input", block_id: "recurrence_interval_block",
-            dispatch_action: true,
-            element: recurrenceSelect,
-            label: { type: "plain_text", text: "Recurrence Interval" }
-        },
-        {
-            type: "input", block_id: "recurring_date_block",
-            element: datePicker,
-            label: { type: "plain_text", text: "Date" }
-        },
-        {
-            type: "input", block_id: "start_time_block",
-            element: startTimePicker,
-            label: { type: "plain_text", text: "Start Time" }
-        },
-        {
-            type: "input", block_id: "end_time_block",
-            element: endTimePicker,
-            label: { type: "plain_text", text: "End Time" }
-        },
-        {
-            type: "input", block_id: "status_type_block",
-            element: buildStatusTypeSelect(isEdit ? existingEvent.statusType : null),
-            label: { type: "plain_text", text: "Status Type" }
-        },
-        {
-            type: "input", block_id: "send_message_block", optional: true,
-            element: buildNotificationCheckbox(isEdit && existingEvent.sendMessage),
-            label: { type: "plain_text", text: "Notifications" }
-        }
-    ];
+    const blocks = [];
 
-    // Show estimated next 4 dates if interval is selected
-    if (currentInterval) {
+    // Recurrence interval block (dispatch when changed)
+    blocks.push({
+        type: "input",
+        block_id: "recurrence_interval_block",
+        dispatch_action: true,
+        element: recurrenceSelect,
+        label: { type: "plain_text", text: "Recurrence Interval" }
+    });
+
+    // Date block (dispatch when changed) - user wants estimated dates after both selected
+    blocks.push({
+        type: "input",
+        block_id: "recurring_date_block",
+        dispatch_action: true,
+        element: datePicker,
+        label: { type: "plain_text", text: "Date" }
+    });
+
+    // If both interval and date are provided, show estimated next 4 dates here (between date and start time)
+    if (currentInterval && currentDate) {
         const opt = RECURRENCE_OPTIONS.find(o => o.value === currentInterval);
         if (opt) {
             const dates = getNextDates(opt.weeks, 4, currentDate);
             blocks.push({
                 type: "context",
-                elements: [{
-                    type: "mrkdwn",
-                    text: `📆 *Estimated next 4 dates:* ${dates.join("  •  ")}`
-                }]
+                elements: [{ type: "mrkdwn", text: `📆 *Estimated next 4 dates:* ${dates.join("  •  ")}` }]
             });
         }
     }
+
+    // Time and other blocks after the estimated dates
+    blocks.push({ type: "input", block_id: "start_time_block", element: startTimePicker, label: { type: "plain_text", text: "Start Time" } });
+    blocks.push({ type: "input", block_id: "end_time_block", element: endTimePicker, label: { type: "plain_text", text: "End Time" } });
+    blocks.push({ type: "input", block_id: "status_type_block", element: buildStatusTypeSelect(isEdit ? existingEvent.statusType : null), label: { type: "plain_text", text: "Status Type" } });
+    blocks.push({ type: "input", block_id: "send_message_block", optional: true, element: buildNotificationCheckbox(isEdit && existingEvent.sendMessage), label: { type: "plain_text", text: "Notifications" } });
 
     return {
         type: "modal",
@@ -575,17 +570,28 @@ async function handleInteractiveAction(payload) {
     // Handle dispatch_action from within a modal (recurrence_interval change)
     if (payload.view && payload.view.type === "modal") {
         for (const action of actions) {
-            if (action.action_id === "recurrence_interval") {
-                const selectedInterval = action.selected_option?.value;
-                const stateValues = payload.view.state?.values || {};
-                const startDate = stateValues.recurring_date_block?.recurring_date?.selected_date || null;
+            // Handle recurrence interval change
+            if (action.action_id === "recurrence_interval" || action.action_id === "recurring_date") {
                 const callbackId = payload.view.callback_id;
+                // Determine selected interval and date from action or state
+                let selectedInterval = null;
+                let startDate = null;
 
-                console.info("Recurrence interval changed:", selectedInterval, "startDate:", startDate);
+                if (action.action_id === "recurrence_interval") {
+                    selectedInterval = action.selected_option?.value || null;
+                    // try to read date from state
+                    startDate = payload.view.state?.values?.recurring_date_block?.recurring_date?.selected_date || null;
+                } else if (action.action_id === "recurring_date") {
+                    startDate = action.selected_date || null;
+                    // try to read interval from state
+                    selectedInterval = payload.view.state?.values?.recurrence_interval_block?.recurrence_interval?.selected_option?.value || null;
+                }
+
+                console.info("Recurrence/modal date changed:", { selectedInterval, startDate });
 
                 // Rebuild recurring modal with estimated dates, preserving existing event context for edits
                 let existingEvent = null;
-                if (callbackId.startsWith("edit_recurring_event_")) {
+                if (callbackId && callbackId.startsWith("edit_recurring_event_")) {
                     const eventId = callbackId.replace("edit_recurring_event_", "");
                     existingEvent = await getEventById(eventId);
                 }

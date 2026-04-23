@@ -41,7 +41,7 @@ To build and deploy your application for the first time, run the following in yo
 ```bash
 sam build
 sam deploy --guided
-sam deploy --parameter-overrides SlackBotToken=""
+sam deploy --parameter-overrides SlackBotToken=$SLACK_TOKEN
 ```
 
 The first command will build the source of your application. The second command will package and deploy your application to AWS, with a series of prompts:

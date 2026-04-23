@@ -163,12 +163,56 @@ Resources:
       AttributeDefinitions:
         - AttributeName: id
           AttributeType: S
+        - AttributeName: userId
+          AttributeType: S
+        - AttributeName: startDate
+          AttributeType: S
+        - AttributeName: startTime
+          AttributeType: S
+        - AttributeName: endDate
+          AttributeType: S
+        - AttributeName: endTime
+          AttributeType: S
       KeySchema:
         - AttributeName: id
           KeyType: HASH
       ProvisionedThroughput:
-        ReadCapacityUnits: 2
-        WriteCapacityUnits: 2
+        ReadCapacityUnits: 1
+        WriteCapacityUnits: 1
+      GlobalSecondaryIndexes:
+        - IndexName: UserIdStartDateIndex
+          KeySchema:
+            - AttributeName: userId
+              KeyType: HASH
+            - AttributeName: startDate
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+          ProvisionedThroughput:
+            ReadCapacityUnits: 1
+            WriteCapacityUnits: 1
+        - IndexName: StartDateStartTimeIndex
+          KeySchema:
+            - AttributeName: startDate
+              KeyType: HASH
+            - AttributeName: startTime
+              KeyType: RANGE
+          Projection:
+            ProjectionType: KEYS_ONLY
+          ProvisionedThroughput:
+            ReadCapacityUnits: 1
+            WriteCapacityUnits: 1
+        - IndexName: EndDateEndTimeIndex
+          KeySchema:
+            - AttributeName: endDate
+              KeyType: HASH
+            - AttributeName: endTime
+              KeyType: RANGE
+          Projection:
+            ProjectionType: KEYS_ONLY
+          ProvisionedThroughput:
+            ReadCapacityUnits: 1
+            WriteCapacityUnits: 1
       Tags:
         - Key: Project
           Value: aodn-slack-havi-bot

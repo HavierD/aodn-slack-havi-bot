@@ -9,6 +9,16 @@ Parameters:
     Type: String
     Description: Slack Bot OAuth Token (xoxb-...)
     NoEcho: true
+  SlackClientId:
+    Type: String
+    Description: Slack App Client ID (from Basic Information page)
+  SlackClientSecret:
+    Type: String
+    Description: Slack App Client Secret (from Basic Information page)
+    NoEcho: true
+  OAuthRedirectUri:
+    Type: String
+    Description: "Full HTTPS URL for the OAuth callback, e.g. https://xxx.execute-api.ap-southeast-2.amazonaws.com/Prod/slack/oauth/callback"
   Environment:
     Type: String
     Description: Deployment environment
@@ -140,13 +150,17 @@ Resources:
       Timeout: 10
       Description: Handles Slack Events API requests including app_home_opened and interactivity
       Policies:
-        # Give Create/Read/Update/Delete Permissions to the HavibotEventsTable
         - DynamoDBCrudPolicy:
             TableName: !Ref HavibotEventsTable
+        - DynamoDBReadPolicy:
+            TableName: !Ref HavibotUserTokensTable
       Environment:
         Variables:
           SLACK_BOT_TOKEN: !Ref SlackBotToken
+          SLACK_CLIENT_ID: !Ref SlackClientId
+          OAUTH_REDIRECT_URI: !Ref OAuthRedirectUri
           SAMPLE_TABLE: !Ref HavibotEventsTable
+          USER_TOKEN_TABLE: !Ref HavibotUserTokensTable
       Events:
         SlackEvents:
           Type: HttpApi
@@ -168,9 +182,12 @@ Resources:
       Policies:
         - DynamoDBCrudPolicy:
             TableName: !Ref HavibotEventsTable
+        - DynamoDBReadPolicy:
+            TableName: !Ref HavibotUserTokensTable
       Environment:
         Variables:
           SAMPLE_TABLE: !Ref HavibotEventsTable
+          USER_TOKEN_TABLE: !Ref HavibotUserTokensTable
 
   # DynamoDB table to store item: {id: &lt;ID&gt;, name: &lt;NAME&gt;}
   HavibotEventsTable:
@@ -230,6 +247,62 @@ Resources:
           ProvisionedThroughput:
             ReadCapacityUnits: 1
             WriteCapacityUnits: 1
+      Tags:
+        - Key: Project
+          Value: aodn-slack-havi-bot
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: ManagedBy
+          Value: SAM
+        - Key: Team
+          Value: AODN
+        - Key: Application
+          Value: HaviBot
+        - Key: AutoOff
+          Value: "False"
+
+  # Slack OAuth callback handler — exchanges code for per-user xoxp- token
+  slackOAuthFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: src/handlers/slack-oauth.slackOAuthHandler
+      Runtime: nodejs22.x
+      Architectures:
+      - x86_64
+      MemorySize: 128
+      Timeout: 10
+      Description: Handles Slack OAuth 2.0 callback and stores per-user tokens
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref HavibotUserTokensTable
+      Environment:
+        Variables:
+          SLACK_CLIENT_ID: !Ref SlackClientId
+          SLACK_CLIENT_SECRET: !Ref SlackClientSecret
+          OAUTH_REDIRECT_URI: !Ref OAuthRedirectUri
+          USER_TOKEN_TABLE: !Ref HavibotUserTokensTable
+      Events:
+        OAuthCallback:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HavibotApi
+            Path: /slack/oauth/callback
+            Method: GET
+
+  # DynamoDB table to store per-user OAuth tokens (xoxp-)
+  HavibotUserTokensTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: aodn-slack-havibot-user-tokens
+      AttributeDefinitions:
+        - AttributeName: userId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: userId
+          KeyType: HASH
+      ProvisionedThroughput:
+        ReadCapacityUnits: 1
+        WriteCapacityUnits: 1
       Tags:
         - Key: Project
           Value: aodn-slack-havi-bot

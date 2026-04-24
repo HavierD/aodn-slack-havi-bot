@@ -1,8 +1,9 @@
-import { QueryCommand, GetCommand, DeleteCommand, UpdateCommand } from '@aws-sdk/lib-dynamodb';
+import { QueryCommand, ScanCommand, GetCommand, DeleteCommand, UpdateCommand } from '@aws-sdk/lib-dynamodb';
 import { ddbSend } from '../lib/dynamo-utils.mjs';
-import { setUserSlackStatus } from '../lib/slack-utils.mjs';
+import { setUserSlackStatus, sendSlackMessage, getUserDisplayName } from '../lib/slack-utils.mjs';
 
 const tableName = process.env.SAMPLE_TABLE;
+const NOTIFICATION_CHANNEL = process.env.NOTIFICATION_CHANNEL || '#havier-test-channel';
 
 // Map statusType values → Slack display text + emoji
 const STATUS_CONFIG = {
@@ -76,11 +77,36 @@ async function queryByIndex(indexName, pkName, skName, pkValue, skValue) {
     return items;
 }
 
+/**
+ * Scan the table for items whose endDate/endTime are earlier than or equal
+ * to the supplied date/time. Handles pagination via ExclusiveStartKey.
+ */
+async function scanEndingEarlier(dateStr, timeStr) {
+    const items = [];
+    let ExclusiveStartKey;
+    const filter = 'endDate < :date OR (endDate = :date AND endTime <= :time)';
+    const exprAttrValues = { ':date': dateStr, ':time': timeStr };
+    do {
+        const res = await ddbSend(new ScanCommand({
+            TableName: tableName,
+            FilterExpression: filter,
+            ExpressionAttributeValues: exprAttrValues,
+            ExclusiveStartKey
+        }));
+        if (res.Items) items.push(...res.Items);
+        ExclusiveStartKey = res.LastEvaluatedKey;
+    } while (ExclusiveStartKey);
+    return items;
+}
+
 export const processScheduleHandler = async (event) => {
     console.info('processScheduleHandler invoked');
 
     const { date, time } = getRoundedDateTime();
-    console.info('Rounded date/time', { date, time });
+    // Also compute the rounded Date object to inspect weekday/hour for special Monday 08:00 behaviour
+    const slotMs = 30 * 60 * 1000;
+    const roundedNow = new Date(Math.round(Date.now() / slotMs) * slotMs);
+    console.info('Rounded date/time', { date, time, weekday: roundedNow.getDay() });
 
     try {
         // ── 1. START events ───────────────────────────────────────────────
@@ -117,20 +143,42 @@ export const processScheduleHandler = async (event) => {
             try {
                 await setUserSlackStatus(item.userId, cfg.text, cfg.emoji, expiration);
                 console.info(`Slack status set for user ${item.userId}: "${cfg.text}", expires ${expiration}`);
+                // Optionally send a notification to the configured channel when the event starts
+                if (item.sendMessage) {
+                    try {
+                        const displayName = await getUserDisplayName(item.userId);
+                        const endPart = (item.endDate || item.endTime) ? ` — until ${item.endDate || ''} ${item.endTime || ''}`.trim() : '';
+                        const text = `*${displayName}* ${cfg.text} ${cfg.emoji}${endPart}`.trim();
+                        await sendSlackMessage(NOTIFICATION_CHANNEL, text);
+                        console.info(`Notification sent to ${NOTIFICATION_CHANNEL} for user ${item.userId}`);
+                    } catch (err) {
+                        console.error(`Failed to send notification for user ${item.userId}:`, err.message);
+                    }
+                }
             } catch (err) {
                 console.error(`Failed to set Slack status for user ${item.userId}:`, err.message);
             }
         }
 
         // ── 2. END events ─────────────────────────────────────────────────
-        // Query items whose endDate + endTime match the rounded slot.
-        // - One-time events  → delete from DynamoDB.
-        // - Recurring events → advance startDate + endDate by the interval.
-        console.info('Querying EndDateEndTimeIndex', { date, time });
-        const endIndexItems = await queryByIndex(
-            'EndDateEndTimeIndex', 'endDate', 'endTime', date, time
-        );
-        console.info(`Found ${endIndexItems.length} end-time item(s)`);
+        // If this is Monday 08:00 (rounded), scan for any events that ended
+        // earlier than or equal to the current slot and process them. This
+        // catches missed events over the weekend/earlier windows.
+        // Otherwise, query the EndDateEndTimeIndex for exact matches.
+        console.info('Processing end events', { date, time });
+        const isMonday0800 = roundedNow.getDay() === 1 && roundedNow.getHours() === 8 && roundedNow.getMinutes() === 0;
+        let endIndexItems;
+        if (isMonday0800) {
+            console.info('Monday 08:00 detected — scanning for events ended earlier than or equal to now');
+            endIndexItems = await scanEndingEarlier(date, time);
+            console.info(`Found ${endIndexItems.length} end-time item(s) (ended <= current slot)`);
+        } else {
+            console.info('Querying EndDateEndTimeIndex for exact matches', { date, time });
+            endIndexItems = await queryByIndex(
+                'EndDateEndTimeIndex', 'endDate', 'endTime', date, time
+            );
+            console.info(`Found ${endIndexItems.length} end-time item(s)`);
+        }
 
         for (const indexItem of endIndexItems) {
             const id = indexItem.id;

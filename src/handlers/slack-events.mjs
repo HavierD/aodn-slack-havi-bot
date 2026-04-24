@@ -2,8 +2,11 @@
 
 import { ScanCommand, QueryCommand, PutCommand, DeleteCommand, GetCommand } from '@aws-sdk/lib-dynamodb';
 import { ddbSend } from '../lib/dynamo-utils.mjs';
+import { getUserToken } from '../lib/slack-utils.mjs';
 
-const SLACK_BOT_TOKEN = process.env.SLACK_BOT_TOKEN;
+const SLACK_BOT_TOKEN   = process.env.SLACK_BOT_TOKEN;
+const SLACK_CLIENT_ID   = process.env.SLACK_CLIENT_ID;
+const OAUTH_REDIRECT_URI = process.env.OAUTH_REDIRECT_URI;
 const tableName = process.env.SAMPLE_TABLE;
 
 // Validate token on module load
@@ -14,6 +17,8 @@ if (!SLACK_BOT_TOKEN) {
 } else {
     console.info(`SLACK_BOT_TOKEN is set (length: ${SLACK_BOT_TOKEN.length}, prefix: ${SLACK_BOT_TOKEN.substring(0, 10)}...)`);
 }
+if (!SLACK_CLIENT_ID)    console.error("WARNING: SLACK_CLIENT_ID is not set — OAuth Connect button will not work!");
+if (!OAUTH_REDIRECT_URI) console.error("WARNING: OAUTH_REDIRECT_URI is not set — OAuth Connect button will not work!");
 
 // Status type options
 const STATUS_TYPES = [
@@ -31,7 +36,7 @@ const RECURRENCE_OPTIONS = [
 ];
 
 // Notification channel
-const NOTIFICATION_CHANNEL = "#abc";
+const NOTIFICATION_CHANNEL = "#havier-test-channel";
 
 /**
  * Calculate next N occurrence dates from a base date given interval in weeks
@@ -161,19 +166,48 @@ function getRecurrenceText(value) {
 
 /**
  * Build the App Home view blocks
+ * @param {Array}   events        Scheduled events for the user
+ * @param {boolean} isAuthorized  Whether the user has connected their account via OAuth
  */
-function buildHomeViewBlocks(events) {
+function buildHomeViewBlocks(events, isAuthorized = false) {
     const blocks = [
         {
             type: "section",
             text: { type: "mrkdwn", text: "*Welcome to the AODN Havi Bot!* :wave:" }
         },
-        { type: "divider" },
-        {
-            type: "section",
-            text: { type: "mrkdwn", text: "*Your Scheduled Status Events*" }
-        }
+        { type: "divider" }
     ];
+
+    // ── OAuth connect banner ──────────────────────────────────────────────
+    if (!isAuthorized) {
+        const oauthUrl = `https://slack.com/oauth/v2/authorize?client_id=${SLACK_CLIENT_ID}&user_scope=users.profile%3Awrite&redirect_uri=${encodeURIComponent(OAUTH_REDIRECT_URI)}`;
+        blocks.push({
+            type: "section",
+            text: {
+                type: "mrkdwn",
+                text: "⚠️ *Connect your account first!*\nHavi Bot needs one-time permission to update your Slack status automatically."
+            },
+            accessory: {
+                type: "button",
+                text: { type: "plain_text", text: "🔗 Connect Account", emoji: true },
+                style: "primary",
+                url: oauthUrl,
+                action_id: "connect_account"
+            }
+        });
+        blocks.push({ type: "divider" });
+    } else {
+        blocks.push({
+            type: "section",
+            text: { type: "mrkdwn", text: "✅ *Account connected.* Your status will be updated automatically." }
+        });
+        blocks.push({ type: "divider" });
+    }
+
+    blocks.push({
+        type: "section",
+        text: { type: "mrkdwn", text: "*Your Scheduled Status Events*" }
+    });
 
     if (events.length === 0) {
         blocks.push({
@@ -494,8 +528,12 @@ function buildRecurringEventModal(existingEvent = null, selectedIntervalValue = 
  * Publishes an App Home view to Slack
  */
 async function publishHomeView(userId) {
-    const events = await getScheduledEvents(userId);
-    const homeView = { type: "home", blocks: buildHomeViewBlocks(events) };
+    const [events, userToken] = await Promise.all([
+        getScheduledEvents(userId),
+        getUserToken(userId)
+    ]);
+    const isAuthorized = !!userToken;
+    const homeView = { type: "home", blocks: buildHomeViewBlocks(events, isAuthorized) };
 
     const response = await fetch("https://slack.com/api/views.publish", {
         method: "POST",

@@ -20,6 +20,7 @@ s3_prefix = "aodn-slack-havi-bot"
 region = "ap-southeast-2"
 parameter_overrides = "Environment=\"dev\""
 image_repositories = []
+tags = "AutoOff=False"
 
 [default.package.parameters]
 resolve_s3 = true

@@ -1,10 +1,7 @@
 // Slack Events API handler for app_home_opened event and interactivity
 
-import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
-import { DynamoDBDocumentClient, ScanCommand, QueryCommand, PutCommand, DeleteCommand, GetCommand } from '@aws-sdk/lib-dynamodb';
-
-const client = new DynamoDBClient({});
-const ddbDocClient = DynamoDBDocumentClient.from(client);
+import { ScanCommand, QueryCommand, PutCommand, DeleteCommand, GetCommand } from '@aws-sdk/lib-dynamodb';
+import { ddbSend } from '../lib/dynamo-utils.mjs';
 
 const SLACK_BOT_TOKEN = process.env.SLACK_BOT_TOKEN;
 const tableName = process.env.SAMPLE_TABLE;
@@ -72,7 +69,7 @@ async function getScheduledEvents(userId) {
             ScanIndexForward: true
         };
 
-        const qres = await ddbDocClient.send(new QueryCommand(queryParams));
+        const qres = await ddbSend(new QueryCommand(queryParams));
         if (qres.Items && qres.Items.length > 0) {
             return qres.Items;
         }
@@ -83,7 +80,7 @@ async function getScheduledEvents(userId) {
             FilterExpression: 'userId = :userId',
             ExpressionAttributeValues: { ':userId': userId }
         };
-        const sres = await ddbDocClient.send(new ScanCommand(scanParams));
+        const sres = await ddbSend(new ScanCommand(scanParams));
         return sres.Items || [];
     } catch (err) {
         console.error('Error fetching scheduled events:', err);
@@ -96,7 +93,7 @@ async function getScheduledEvents(userId) {
  */
 async function getEventById(eventId) {
     try {
-        const data = await ddbDocClient.send(new GetCommand({
+        const data = await ddbSend(new GetCommand({
             TableName: tableName,
             Key: { id: eventId }
         }));
@@ -112,7 +109,7 @@ async function getEventById(eventId) {
  */
 async function saveScheduledEvent(event) {
     try {
-        await ddbDocClient.send(new PutCommand({ TableName: tableName, Item: event }));
+        await ddbSend(new PutCommand({ TableName: tableName, Item: event }));
         console.info("Event saved successfully:", event);
         return true;
     } catch (err) {
@@ -126,7 +123,7 @@ async function saveScheduledEvent(event) {
  */
 async function deleteScheduledEvent(eventId) {
     try {
-        await ddbDocClient.send(new DeleteCommand({
+        await ddbSend(new DeleteCommand({
             TableName: tableName,
             Key: { id: eventId }
         }));
@@ -240,6 +237,51 @@ function buildHomeViewBlocks(events) {
 }
 
 /**
+ * Generate 30-minute time slot options for the whole day (00:00 – 23:30).
+ * Display text uses 12-hour AM/PM format; value is 24-hour HH:MM.
+ */
+function buildTimeOptions() {
+    const options = [];
+    for (let h = 7; h <= 20; h++) {
+        for (const m of [0, 30]) {
+            if (h === 20 && m === 30) continue; // last slot is 8:00 PM (20:00)
+            const hh = String(h).padStart(2, '0');
+            const mm = String(m).padStart(2, '0');
+            const value = `${hh}:${mm}`;
+            const period = h < 12 ? 'AM' : 'PM';
+            const displayH = h > 12 ? h - 12 : h;
+            const text = `${displayH}:${mm} ${period}`;
+            options.push({ text: { type: 'plain_text', text }, value });
+        }
+    }
+    return options;
+}
+
+// Pre-built once at module load (48 options, reused across all modal builds)
+const TIME_OPTIONS = buildTimeOptions();
+
+/**
+ * Build a static_select time picker with 30-minute increments.
+ * @param {string} actionId      action_id for the element
+ * @param {string|null} initialTime  24-hour "HH:MM" to pre-select (optional)
+ */
+function buildTimeSelect(actionId, initialTime = null) {
+    const el = {
+        type: 'static_select',
+        action_id: actionId,
+        placeholder: { type: 'plain_text', text: 'Select time' },
+        options: TIME_OPTIONS
+    };
+    if (initialTime) {
+        // Normalise to HH:MM (trim seconds if present)
+        const norm = initialTime.substring(0, 5);
+        const match = TIME_OPTIONS.find(o => o.value === norm);
+        if (match) el.initial_option = match;
+    }
+    return el;
+}
+
+/**
  * Build status type select element
  */
 function buildStatusTypeSelect(existingValue = null) {
@@ -296,12 +338,10 @@ function buildOneTimeEventModal(existingEvent = null) {
     };
     if (isEdit && existingEvent.startDate) startDatePicker.initial_date = existingEvent.startDate;
 
-    const startTimePicker = {
-        type: "timepicker",
-        action_id: "start_time",
-        placeholder: { type: "plain_text", text: "Select start time" },
-        initial_time: (isEdit && existingEvent.startTime) ? existingEvent.startTime : "08:00"
-    };
+    const startTimePicker = buildTimeSelect(
+        'start_time',
+        (isEdit && existingEvent.startTime) ? existingEvent.startTime : '08:00'
+    );
 
     const endDatePicker = {
         type: "datepicker",
@@ -310,12 +350,10 @@ function buildOneTimeEventModal(existingEvent = null) {
     };
     if (isEdit && existingEvent.endDate) endDatePicker.initial_date = existingEvent.endDate;
 
-    const endTimePicker = {
-        type: "timepicker",
-        action_id: "end_time",
-        placeholder: { type: "plain_text", text: "Select end time" },
-        initial_time: (isEdit && existingEvent.endTime) ? existingEvent.endTime : "17:00"
-    };
+    const endTimePicker = buildTimeSelect(
+        'end_time',
+        (isEdit && existingEvent.endTime) ? existingEvent.endTime : '17:00'
+    );
 
     return {
         type: "modal",
@@ -394,19 +432,15 @@ function buildRecurringEventModal(existingEvent = null, selectedIntervalValue = 
     };
     if (currentDate) datePicker.initial_date = currentDate;
 
-    const startTimePicker = {
-        type: "timepicker",
-        action_id: "start_time",
-        placeholder: { type: "plain_text", text: "Select start time" },
-        initial_time: (isEdit && existingEvent.startTime) ? existingEvent.startTime : "08:00"
-    };
+    const startTimePicker = buildTimeSelect(
+        'start_time',
+        (isEdit && existingEvent.startTime) ? existingEvent.startTime : '08:00'
+    );
 
-    const endTimePicker = {
-        type: "timepicker",
-        action_id: "end_time",
-        placeholder: { type: "plain_text", text: "Select end time" },
-        initial_time: (isEdit && existingEvent.endTime) ? existingEvent.endTime : "17:00"
-    };
+    const endTimePicker = buildTimeSelect(
+        'end_time',
+        (isEdit && existingEvent.endTime) ? existingEvent.endTime : '17:00'
+    );
 
     const blocks = [];
 
@@ -544,9 +578,9 @@ function generateEventId() {
 function parseOneTimeModalValues(values) {
     return {
         startDate: values.start_date_block?.start_date?.selected_date,
-        startTime: values.start_time_block?.start_time?.selected_time,
+        startTime: values.start_time_block?.start_time?.selected_option?.value,
         endDate: values.end_date_block?.end_date?.selected_date,
-        endTime: values.end_time_block?.end_time?.selected_time,
+        endTime: values.end_time_block?.end_time?.selected_option?.value,
         statusType: values.status_type_block?.status_type?.selected_option?.value,
         sendMessage: (values.send_message_block?.send_message?.selected_options || [])
             .some(opt => opt.value === "send_message"),
@@ -565,8 +599,8 @@ function parseRecurringModalValues(values) {
         // For recurring events, store the date as both startDate and endDate
         startDate: date,
         endDate: date,
-        startTime: values.start_time_block?.start_time?.selected_time,
-        endTime: values.end_time_block?.end_time?.selected_time,
+        startTime: values.start_time_block?.start_time?.selected_option?.value,
+        endTime: values.end_time_block?.end_time?.selected_option?.value,
         statusType: values.status_type_block?.status_type?.selected_option?.value,
         sendMessage: (values.send_message_block?.send_message?.selected_options || [])
             .some(opt => opt.value === "send_message"),

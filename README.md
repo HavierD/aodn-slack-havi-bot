@@ -39,9 +39,7 @@ To use the AWS SAM CLI, you need the following tools:
 To build and deploy your application for the first time, run the following in your shell:
 
 ```bash
-sam build
-sam deploy --guided
-sam deploy --parameter-overrides SlackBotToken=$SLACK_TOKEN
+sam build && sam deploy --parameter-overrides SlackBotToken=$SLACK_TOKEN
 ```
 
 The first command will build the source of your application. The second command will package and deploy your application to AWS, with a series of prompts:

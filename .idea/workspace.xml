@@ -4,10 +4,14 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="5904877a-db57-400c-a68e-22562a204ca4" name="Changes" comment="use GSIs">
-      <change afterPath="$PROJECT_DIR$/src/lib/slack-utils.mjs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/samconfig.toml" beforeDir="false" afterPath="$PROJECT_DIR$/samconfig.toml" afterDir="false" />
+    <list default="true" id="5904877a-db57-400c-a68e-22562a204ca4" name="Changes" comment="slack utils">
+      <change afterPath="$PROJECT_DIR$/src/lib/dynamo-utils.mjs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/README.md" beforeDir="false" afterPath="$PROJECT_DIR$/README.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/handlers/get-all-items.mjs" beforeDir="false" afterPath="$PROJECT_DIR$/src/handlers/get-all-items.mjs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/handlers/get-by-id.mjs" beforeDir="false" afterPath="$PROJECT_DIR$/src/handlers/get-by-id.mjs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/handlers/process-schedule.mjs" beforeDir="false" afterPath="$PROJECT_DIR$/src/handlers/process-schedule.mjs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/handlers/put-item.mjs" beforeDir="false" afterPath="$PROJECT_DIR$/src/handlers/put-item.mjs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/handlers/slack-events.mjs" beforeDir="false" afterPath="$PROJECT_DIR$/src/handlers/slack-events.mjs" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -24,8 +28,8 @@
   </component>
   <component name="CopilotUserSelectedModel">
     <selectedModels>
-      <entry key="agent-panel" value="GPT-5 mini" />
-      <entry key="chat-panel" value="GPT-5 mini" />
+      <entry key="agent-panel" value="Claude Sonnet 4.6" />
+      <entry key="chat-panel" value="Claude Sonnet 4.6" />
     </selectedModels>
   </component>
   <component name="EmbeddingIndexingInfo">
@@ -194,7 +198,7 @@
       <workItem from="1776916897524" duration="2904000" />
       <workItem from="1776920127435" duration="5564000" />
       <workItem from="1776932496472" duration="1766000" />
-      <workItem from="1777002583621" duration="1987000" />
+      <workItem from="1777002583621" duration="6078000" />
     </task>
     <task id="LOCAL-00001" summary="first commit">
       <option name="closed" value="true" />
@@ -276,7 +280,15 @@
       <option name="project" value="LOCAL" />
       <updated>1776922971090</updated>
     </task>
-    <option name="localTasksCounter" value="11" />
+    <task id="LOCAL-00011" summary="slack utils">
+      <option name="closed" value="true" />
+      <created>1777004591043</created>
+      <option name="number" value="00011" />
+      <option name="presentableId" value="LOCAL-00011" />
+      <option name="project" value="LOCAL" />
+      <updated>1777004591043</updated>
+    </task>
+    <option name="localTasksCounter" value="12" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -300,7 +312,8 @@
     <MESSAGE value="fix estimated dates error" />
     <MESSAGE value="add GSIs" />
     <MESSAGE value="use GSIs" />
-    <option name="LAST_COMMIT_MESSAGE" value="use GSIs" />
+    <MESSAGE value="slack utils" />
+    <option name="LAST_COMMIT_MESSAGE" value="slack utils" />
   </component>
   <component name="github-copilot-workspace">
     <instructionFileLocations>

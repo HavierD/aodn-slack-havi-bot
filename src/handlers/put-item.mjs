@@ -1,10 +1,5 @@
-// Create clients and set shared const values outside of the handler.
-
-// Create a DocumentClient that represents the query to add an item
-import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
-import { DynamoDBDocumentClient, PutCommand } from '@aws-sdk/lib-dynamodb';
-const client = new DynamoDBClient({});
-const ddbDocClient = DynamoDBDocumentClient.from(client);
+import { PutCommand } from '@aws-sdk/lib-dynamodb';
+import { ddbSend } from '../lib/dynamo-utils.mjs';
 
 // Get the DynamoDB table name from environment variables
 const tableName = process.env.SAMPLE_TABLE;
@@ -32,7 +27,7 @@ export const putItemHandler = async (event) => {
     };
 
     try {
-        const data = await ddbDocClient.send(new PutCommand(params));
+        const data = await ddbSend(new PutCommand(params));
         console.log("Success - item added or updated", data);
       } catch (err) {
         console.log("Error", err.stack);

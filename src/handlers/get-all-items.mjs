@@ -1,12 +1,6 @@
-// Create clients and set shared const values outside of the handler.
+import { ScanCommand } from '@aws-sdk/lib-dynamodb';
+import { ddbSend } from '../lib/dynamo-utils.mjs';
 
-// Create a DocumentClient that represents the query to add an item
-import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
-import { DynamoDBDocumentClient, ScanCommand } from '@aws-sdk/lib-dynamodb';
-const client = new DynamoDBClient({});
-const ddbDocClient = DynamoDBDocumentClient.from(client);
-
-// Get the DynamoDB table name from environment variables
 const tableName = process.env.SAMPLE_TABLE;
 
 /**
@@ -27,7 +21,7 @@ export const getAllItemsHandler = async (event) => {
     };
 
     try {
-        const data = await ddbDocClient.send(new ScanCommand(params));
+        const data = await ddbSend(new ScanCommand(params));
         var items = data.Items;
     } catch (err) {
         console.log("Error", err);

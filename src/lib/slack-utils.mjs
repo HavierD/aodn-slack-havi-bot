@@ -150,8 +150,21 @@ export async function clearUserSlackStatus(userId) {
 export async function getUserDisplayName(userId) {
     if (!userId) return userId;
     try {
-        const result = await callSlackApi('users.info', { user: userId }, SLACK_BOT_TOKEN);
-        return result.user?.profile?.display_name || userId;
+        // users.info is a GET-style API — parameters must be passed as query params,
+        // not as a JSON body (which Slack ignores for this method).
+        const response = await fetch(
+            `https://slack.com/api/users.info?user=${encodeURIComponent(userId)}`,
+            { headers: { 'Authorization': `Bearer ${SLACK_BOT_TOKEN}` } }
+        );
+        const result = await response.json();
+        if (!result.ok) throw new Error(`Slack API error [users.info]: ${result.error}`);
+        const profile = result.user?.profile;
+        const user    = result.user;
+        // Prefer display_name → real_name → name (username), fall back to userId
+        return profile?.display_name
+            || profile?.real_name
+            || user?.name
+            || userId;
     } catch (err) {
         console.warn(`Failed to fetch display name for userId=${userId}:`, err.message);
         return userId;

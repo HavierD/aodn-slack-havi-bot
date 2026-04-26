@@ -3,11 +3,15 @@ import { ddbSend } from '../lib/dynamo-utils.mjs';
 import { setUserSlackStatus, sendSlackMessage, getUserDisplayName } from '../lib/slack-utils.mjs';
 
 const tableName = process.env.SAMPLE_TABLE;
-const NOTIFICATION_CHANNEL = process.env.NOTIFICATION_CHANNEL || '#havier-test-channel';
+const NOTIFICATION_CHANNEL = process.env.NOTIFICATION_CHANNEL || 'C0AUN44711B';
+
+// Timezone for all date/time operations (Australia/Sydney and Australia/Hobart
+// share the same UTC offset / DST rules — AEST UTC+10 / AEDT UTC+11)
+const TZ = 'Australia/Sydney';
 
 // Map statusType values → Slack display text + emoji
 const STATUS_CONFIG = {
-    working_remotely: { text: 'Working remotely', emoji: ':house:' },
+    working_remotely: { text: 'Working remotely', emoji: ':house_with_garden:' },
     vacationing:      { text: 'Vacationing',       emoji: ':palm_tree:' },
     out_sick:         { text: 'Out sick',           emoji: ':face_with_thermometer:' }
 };
@@ -32,10 +36,10 @@ const INTERVAL_DAYS = {
 function getRoundedDateTime() {
     const slotMs = 30 * 60 * 1000; // 30 minutes in milliseconds
     const rounded = new Date(Math.round(Date.now() / slotMs) * slotMs);
-    const date = rounded.toLocaleDateString('en-CA'); // → YYYY-MM-DD
-    const hh = String(rounded.getHours()).padStart(2, '0');
-    const mm = String(rounded.getMinutes()).padStart(2, '0');
-    return { date, time: `${hh}:${mm}` };
+    // Format date and time in the configured timezone (Sydney/Hobart), not UTC
+    const date = rounded.toLocaleDateString('en-CA', { timeZone: TZ }); // → YYYY-MM-DD
+    const time = rounded.toLocaleTimeString('en-GB', { timeZone: TZ, hour: '2-digit', minute: '2-digit', hour12: false }); // → HH:MM
+    return { date, time };
 }
 
 /**
@@ -53,7 +57,22 @@ function addDaysToDateStr(dateStr, days) {
  */
 function toUnixTimestamp(dateStr, timeStr) {
     if (!dateStr || !timeStr) return 0;
-    return Math.floor(new Date(`${dateStr}T${timeStr}:00`).getTime() / 1000);
+    // dateStr/timeStr are stored as Sydney/Hobart local time — convert to UTC correctly.
+    // Treat the string as UTC first (probeUtc) so we can ask Intl what Sydney's
+    // wall-clock looks like at that instant, then compute the real UTC offset.
+    const probeUtc = new Date(`${dateStr}T${timeStr}:00Z`);
+    const parts = new Intl.DateTimeFormat('en-CA', {
+        timeZone: TZ,
+        year: 'numeric', month: '2-digit', day: '2-digit',
+        hour: '2-digit', minute: '2-digit', second: '2-digit',
+        hour12: false
+    }).formatToParts(probeUtc);
+    const get = type => parseInt(parts.find(p => p.type === type).value, 10);
+    // "Sydney local time" expressed as a UTC epoch value (for offset arithmetic)
+    const sydneyAsUtcMs = Date.UTC(get('year'), get('month') - 1, get('day'), get('hour'), get('minute'), get('second'));
+    // offsetMs: positive means Sydney is ahead of UTC (e.g. AEST = +10 h → offsetMs = -10 h in ms)
+    const offsetMs = probeUtc.getTime() - sydneyAsUtcMs;
+    return Math.floor((probeUtc.getTime() + offsetMs) / 1000);
 }
 
 /**
@@ -106,7 +125,9 @@ export const processScheduleHandler = async (event) => {
     // Also compute the rounded Date object to inspect weekday/hour for special Monday 08:00 behaviour
     const slotMs = 30 * 60 * 1000;
     const roundedNow = new Date(Math.round(Date.now() / slotMs) * slotMs);
-    console.info('Rounded date/time', { date, time, weekday: roundedNow.getDay() });
+    // Use a locale-string trick to read weekday/hour/minute in the configured timezone
+    const tzDate = new Date(roundedNow.toLocaleString('en-US', { timeZone: TZ }));
+    console.info('Rounded date/time', { date, time, weekday: tzDate.getDay() });
 
     try {
         // ── 1. START events ───────────────────────────────────────────────
@@ -152,7 +173,7 @@ export const processScheduleHandler = async (event) => {
                         await sendSlackMessage(NOTIFICATION_CHANNEL, text);
                         console.info(`Notification sent to ${NOTIFICATION_CHANNEL} for user ${item.userId}`);
                     } catch (err) {
-                        console.error(`Failed to send notification for user ${item.userId}:`, err.message);
+                        console.error(`Failed to send notification to channel ${NOTIFICATION_CHANNEL} for user ${item.userId}:`, err.message);
                     }
                 }
             } catch (err) {
@@ -166,7 +187,7 @@ export const processScheduleHandler = async (event) => {
         // catches missed events over the weekend/earlier windows.
         // Otherwise, query the EndDateEndTimeIndex for exact matches.
         console.info('Processing end events', { date, time });
-        const isMonday0800 = roundedNow.getDay() === 1 && roundedNow.getHours() === 8 && roundedNow.getMinutes() === 0;
+        const isMonday0800 = tzDate.getDay() === 1 && tzDate.getHours() === 8 && tzDate.getMinutes() === 0;
         let endIndexItems;
         if (isMonday0800) {
             console.info('Monday 08:00 detected — scanning for events ended earlier than or equal to now');

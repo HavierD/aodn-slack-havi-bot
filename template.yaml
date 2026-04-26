@@ -186,6 +186,7 @@ Resources:
             TableName: !Ref HavibotUserTokensTable
       Environment:
         Variables:
+          SLACK_BOT_TOKEN: !Ref SlackBotToken
           SAMPLE_TABLE: !Ref HavibotEventsTable
           USER_TOKEN_TABLE: !Ref HavibotUserTokensTable
 

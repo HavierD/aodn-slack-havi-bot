@@ -35,8 +35,45 @@ const RECURRENCE_OPTIONS = [
     { text: "Every 4 weeks", value: "every_4_weeks", weeks: 4 },
 ];
 
-// Notification channel
-const NOTIFICATION_CHANNEL = "#havier-test-channel";
+// Notification channel — prefer env var (channel ID is most reliable)
+const NOTIFICATION_CHANNEL_NAME = "havier-test-channel";
+
+// Timezone for display/comparison (same as process-schedule)
+const TZ = 'Australia/Sydney';
+
+/**
+ * Compute the dynamic notification checkbox label for a one-time event.
+ * - If all four date/time values are provided and the current Sydney time is
+ *   within [startDate startTime, endDate endTime] → "…now"
+ * - Otherwise → "…at <startDate> <startTime>"
+ * - If any value is missing → plain "Send notification to <channel>"
+ */
+function getNotificationCheckboxText(startDate, startTime, endDate, endTime) {
+    const base = `Send notification to ${NOTIFICATION_CHANNEL_NAME}`;
+    if (!startDate || !startTime || !endDate || !endTime) return base;
+
+    const now      = new Date();
+    const nowDate  = now.toLocaleDateString('en-CA', { timeZone: TZ });
+    const nowTime  = now.toLocaleTimeString('en-GB', { timeZone: TZ, hour: '2-digit', minute: '2-digit', hour12: false });
+    const nowStr   = `${nowDate} ${nowTime}`;
+    const startStr = `${startDate} ${startTime}`;
+    const endStr   = `${endDate} ${endTime}`;
+
+    if (nowStr >= startStr && nowStr <= endStr) {
+        return `${base} now`;
+    }
+    return `${base} at ${startDate} ${startTime}`;
+}
+
+/**
+ * Compute the dynamic notification checkbox label for a recurring event.
+ * Shows the start time once it has been selected.
+ */
+function getRecurringNotificationCheckboxText(startTime) {
+    const base = `Send notification to ${NOTIFICATION_CHANNEL_NAME}`;
+    if (!startTime) return base;
+    return `${base} on every recurring day at ${startTime}`;
+}
 
 /**
  * Calculate next N occurrence dates from a base date given interval in weeks
@@ -228,7 +265,7 @@ function buildHomeViewBlocks(events, isAuthorized = false) {
                             const typeText = isRecurring
                                 ? `🔁 Recurring (${getRecurrenceText(event.recurrenceInterval)})\n*From:* ${formatDateTime(event.startDate || event.date, event.startTime)} — ${event.endTime || "17:00"}`
                 : `📅 One-time\n*Start:* ${formatDateTime(event.startDate, event.startTime)}\n*End:* ${formatDateTime(event.endDate, event.endTime)}`;
-            const notifyText = event.sendMessage ? `\n💬 Will notify ${NOTIFICATION_CHANNEL}` : "";
+            const notifyText = event.sendMessage ? `\n💬 Will notify ${NOTIFICATION_CHANNEL_NAME}` : "";
 
             blocks.push({
                 type: "section",
@@ -338,20 +375,23 @@ function buildStatusTypeSelect(existingValue = null) {
 }
 
 /**
- * Build notification checkbox element
+ * Build notification checkbox element.
+ * @param {boolean} checked
+ * @param {string|null} labelText  Override label; defaults to plain "Send notification to <channel>"
  */
-function buildNotificationCheckbox(checked = false) {
+function buildNotificationCheckbox(checked = false, labelText = null) {
+    const text = labelText || `Send notification to ${NOTIFICATION_CHANNEL_NAME}`;
     const el = {
         type: "checkboxes",
         action_id: "send_message",
         options: [{
-            text: { type: "plain_text", text: `Send notification to ${NOTIFICATION_CHANNEL}` },
+            text: { type: "plain_text", text },
             value: "send_message"
         }]
     };
     if (checked) {
         el.initial_options = [{
-            text: { type: "plain_text", text: `Send notification to ${NOTIFICATION_CHANNEL}` },
+            text: { type: "plain_text", text },
             value: "send_message"
         }];
     }
@@ -359,35 +399,45 @@ function buildNotificationCheckbox(checked = false) {
 }
 
 /**
- * Build the Add/Edit One-Time Event modal
+ * Build the Add/Edit One-Time Event modal.
+ * @param {object|null} existingEvent  Existing event for edit mode
+ * @param {object|null} currentValues  Live form state {startDate,startTime,endDate,endTime,sendMessage}
+ *                                     passed when rebuilding the modal via dispatch_action
  */
-function buildOneTimeEventModal(existingEvent = null) {
+function buildOneTimeEventModal(existingEvent = null, currentValues = null) {
     const isEdit = existingEvent !== null;
     const callbackId = isEdit ? `edit_one_time_event_${existingEvent.id}` : "add_one_time_event";
+
+    // Resolve the best-known values for pre-population and notification label
+    const cvStartDate = currentValues?.startDate ?? (isEdit ? existingEvent.startDate : null);
+    const cvStartTime = currentValues?.startTime ?? (isEdit ? existingEvent.startTime : null);
+    const cvEndDate   = currentValues?.endDate   ?? (isEdit ? existingEvent.endDate   : null);
+    const cvEndTime   = currentValues?.endTime   ?? (isEdit ? existingEvent.endTime   : null);
+    // Preserve checkbox state during live updates; fall back to saved value
+    const cvChecked   = currentValues?.sendMessage !== undefined
+        ? currentValues.sendMessage
+        : (isEdit && existingEvent.sendMessage);
 
     const startDatePicker = {
         type: "datepicker",
         action_id: "start_date",
         placeholder: { type: "plain_text", text: "Select start date" }
     };
-    if (isEdit && existingEvent.startDate) startDatePicker.initial_date = existingEvent.startDate;
+    if (cvStartDate) startDatePicker.initial_date = cvStartDate;
 
-    const startTimePicker = buildTimeSelect(
-        'start_time',
-        (isEdit && existingEvent.startTime) ? existingEvent.startTime : '08:00'
-    );
+    const startTimePicker = buildTimeSelect('start_time', cvStartTime || '08:00');
 
     const endDatePicker = {
         type: "datepicker",
         action_id: "end_date",
         placeholder: { type: "plain_text", text: "Select end date" }
     };
-    if (isEdit && existingEvent.endDate) endDatePicker.initial_date = existingEvent.endDate;
+    if (cvEndDate) endDatePicker.initial_date = cvEndDate;
 
-    const endTimePicker = buildTimeSelect(
-        'end_time',
-        (isEdit && existingEvent.endTime) ? existingEvent.endTime : '17:00'
-    );
+    const endTimePicker = buildTimeSelect('end_time', cvEndTime || '17:00');
+
+    // Dynamic notification label based on current date/time values
+    const notifLabel = getNotificationCheckboxText(cvStartDate, cvStartTime, cvEndDate, cvEndTime);
 
     return {
         type: "modal",
@@ -397,22 +447,22 @@ function buildOneTimeEventModal(existingEvent = null) {
         close: { type: "plain_text", text: "Cancel" },
         blocks: [
             {
-                type: "input", block_id: "start_date_block",
+                type: "input", block_id: "start_date_block", dispatch_action: true,
                 element: startDatePicker,
                 label: { type: "plain_text", text: "Start Date" }
             },
             {
-                type: "input", block_id: "start_time_block",
+                type: "input", block_id: "start_time_block", dispatch_action: true,
                 element: startTimePicker,
                 label: { type: "plain_text", text: "Start Time" }
             },
             {
-                type: "input", block_id: "end_date_block",
+                type: "input", block_id: "end_date_block", dispatch_action: true,
                 element: endDatePicker,
                 label: { type: "plain_text", text: "End Date" }
             },
             {
-                type: "input", block_id: "end_time_block",
+                type: "input", block_id: "end_time_block", dispatch_action: true,
                 element: endTimePicker,
                 label: { type: "plain_text", text: "End Time" }
             },
@@ -423,7 +473,7 @@ function buildOneTimeEventModal(existingEvent = null) {
             },
             {
                 type: "input", block_id: "send_message_block", optional: true,
-                element: buildNotificationCheckbox(isEdit && existingEvent.sendMessage),
+                element: buildNotificationCheckbox(cvChecked, notifLabel),
                 label: { type: "plain_text", text: "Notifications" }
             }
         ]
@@ -432,16 +482,25 @@ function buildOneTimeEventModal(existingEvent = null) {
 
 /**
  * Build the Add/Edit Recurring Event modal
- * selectedIntervalValue and startDateValue are used to show estimated next 4 dates
+ * @param {object|null} existingEvent        Existing event for edit mode
+ * @param {string|null} selectedIntervalValue  Current recurrence interval value
+ * @param {string|null} startDateValue         Current date value
+ * @param {object|null} currentValues          Live form state {startTime,endTime,sendMessage}
+ *                                             passed when rebuilding via dispatch_action
  */
-function buildRecurringEventModal(existingEvent = null, selectedIntervalValue = null, startDateValue = null) {
+function buildRecurringEventModal(existingEvent = null, selectedIntervalValue = null, startDateValue = null, currentValues = null) {
     const isEdit = existingEvent !== null;
     const callbackId = isEdit ? `edit_recurring_event_${existingEvent.id}` : "add_recurring_event";
 
-    // Determine current values (for pre-population or dispatch_action context)
     const currentInterval = selectedIntervalValue || (isEdit ? existingEvent.recurrenceInterval : null);
-    // Support legacy items that used `date`; prefer `startDate` for recurring items
-    const currentDate = startDateValue || (isEdit ? (existingEvent.startDate || existingEvent.date) : null);
+    const currentDate     = startDateValue || (isEdit ? (existingEvent.startDate || existingEvent.date) : null);
+
+    // Resolve time values — live state takes priority, then saved, then defaults
+    const cvStartTime = currentValues?.startTime ?? (isEdit ? existingEvent.startTime : null);
+    const cvEndTime   = currentValues?.endTime   ?? (isEdit ? existingEvent.endTime   : null);
+    const cvChecked   = currentValues?.sendMessage !== undefined
+        ? currentValues.sendMessage
+        : (isEdit && existingEvent.sendMessage);
 
     const recurrenceSelect = {
         type: "static_select",
@@ -466,37 +525,26 @@ function buildRecurringEventModal(existingEvent = null, selectedIntervalValue = 
     };
     if (currentDate) datePicker.initial_date = currentDate;
 
-    const startTimePicker = buildTimeSelect(
-        'start_time',
-        (isEdit && existingEvent.startTime) ? existingEvent.startTime : '08:00'
-    );
+    const startTimePicker = buildTimeSelect('start_time', cvStartTime || '08:00');
+    const endTimePicker   = buildTimeSelect('end_time',   cvEndTime   || '17:00');
 
-    const endTimePicker = buildTimeSelect(
-        'end_time',
-        (isEdit && existingEvent.endTime) ? existingEvent.endTime : '17:00'
-    );
+    // Dynamic notification label
+    const notifLabel = getRecurringNotificationCheckboxText(cvStartTime);
 
     const blocks = [];
 
-    // Recurrence interval block (dispatch when changed)
     blocks.push({
-        type: "input",
-        block_id: "recurrence_interval_block",
-        dispatch_action: true,
+        type: "input", block_id: "recurrence_interval_block", dispatch_action: true,
         element: recurrenceSelect,
         label: { type: "plain_text", text: "Recurrence Interval" }
     });
 
-    // Date block (dispatch when changed) - user wants estimated dates after both selected
     blocks.push({
-        type: "input",
-        block_id: "recurring_date_block",
-        dispatch_action: true,
+        type: "input", block_id: "recurring_date_block", dispatch_action: true,
         element: datePicker,
         label: { type: "plain_text", text: "Date" }
     });
 
-    // If both interval and date are provided, show estimated next 4 dates here (between date and start time)
     if (currentInterval && currentDate) {
         const opt = RECURRENCE_OPTIONS.find(o => o.value === currentInterval);
         if (opt) {
@@ -508,11 +556,10 @@ function buildRecurringEventModal(existingEvent = null, selectedIntervalValue = 
         }
     }
 
-    // Time and other blocks after the estimated dates
-    blocks.push({ type: "input", block_id: "start_time_block", element: startTimePicker, label: { type: "plain_text", text: "Start Time" } });
-    blocks.push({ type: "input", block_id: "end_time_block", element: endTimePicker, label: { type: "plain_text", text: "End Time" } });
+    blocks.push({ type: "input", block_id: "start_time_block", dispatch_action: true, element: startTimePicker, label: { type: "plain_text", text: "Start Time" } });
+    blocks.push({ type: "input", block_id: "end_time_block",   dispatch_action: true, element: endTimePicker,   label: { type: "plain_text", text: "End Time" } });
     blocks.push({ type: "input", block_id: "status_type_block", element: buildStatusTypeSelect(isEdit ? existingEvent.statusType : null), label: { type: "plain_text", text: "Status Type" } });
-    blocks.push({ type: "input", block_id: "send_message_block", optional: true, element: buildNotificationCheckbox(isEdit && existingEvent.sendMessage), label: { type: "plain_text", text: "Notifications" } });
+    blocks.push({ type: "input", block_id: "send_message_block", optional: true, element: buildNotificationCheckbox(cvChecked, notifLabel), label: { type: "plain_text", text: "Notifications" } });
 
     return {
         type: "modal",
@@ -611,6 +658,17 @@ function generateEventId() {
 }
 
 /**
+ * Compare two date+time strings.
+ * Returns true if end is strictly before start.
+ */
+function isEndBeforeStart(startDate, startTime, endDate, endTime) {
+    if (!startDate || !endDate) return false;
+    const start = new Date(`${startDate}T${startTime || "00:00"}:00`);
+    const end   = new Date(`${endDate}T${endTime   || "00:00"}:00`);
+    return end < start;
+}
+
+/**
  * Parse one-time modal submission values
  */
 function parseOneTimeModalValues(values) {
@@ -655,36 +713,54 @@ async function handleInteractiveAction(payload) {
     const triggerId = payload.trigger_id;
     const actions = payload.actions || [];
 
-    // Handle dispatch_action from within a modal (recurrence_interval change)
+    // Handle dispatch_action from within a modal
     if (payload.view && payload.view.type === "modal") {
+        const callbackId = payload.view.callback_id;
+        const sv = payload.view.state.values;
+
         for (const action of actions) {
-            // Handle recurrence interval change
-            if (action.action_id === "recurrence_interval" || action.action_id === "recurring_date") {
-                const callbackId = payload.view.callback_id;
-                // Determine selected interval and date from action or state
-                let selectedInterval = null;
-                let startDate = null;
+            // ── Recurring modal: any of its dispatch fields changed ────────
+            const isRecurringModal = callbackId === "add_recurring_event" || callbackId.startsWith("edit_recurring_event_");
+            if (isRecurringModal && ["recurrence_interval", "recurring_date", "start_time", "end_time"].includes(action.action_id)) {
+                const selectedInterval = sv.recurrence_interval_block?.recurrence_interval?.selected_option?.value || null;
+                const startDate        = sv.recurring_date_block?.recurring_date?.selected_date || null;
+                const currentValues    = {
+                    startTime:   sv.start_time_block?.start_time?.selected_option?.value || null,
+                    endTime:     sv.end_time_block?.end_time?.selected_option?.value     || null,
+                    sendMessage: (sv.send_message_block?.send_message?.selected_options || []).some(o => o.value === "send_message")
+                };
 
-                if (action.action_id === "recurrence_interval") {
-                    selectedInterval = action.selected_option?.value || null;
-                    // try to read date from state
-                    startDate = payload.view.state?.values?.recurring_date_block?.recurring_date?.selected_date || null;
-                } else if (action.action_id === "recurring_date") {
-                    startDate = action.selected_date || null;
-                    // try to read interval from state
-                    selectedInterval = payload.view.state?.values?.recurrence_interval_block?.recurrence_interval?.selected_option?.value || null;
-                }
-
-                console.info("Recurrence/modal date changed:", { selectedInterval, startDate });
-
-                // Rebuild recurring modal with estimated dates, preserving existing event context for edits
                 let existingEvent = null;
-                if (callbackId && callbackId.startsWith("edit_recurring_event_")) {
+                if (callbackId.startsWith("edit_recurring_event_")) {
                     const eventId = callbackId.replace("edit_recurring_event_", "");
                     existingEvent = await getEventById(eventId);
                 }
 
-                const updatedModal = buildRecurringEventModal(existingEvent, selectedInterval, startDate);
+                console.info("Recurring modal field changed:", { selectedInterval, startDate, ...currentValues });
+                const updatedModal = buildRecurringEventModal(existingEvent, selectedInterval, startDate, currentValues);
+                await updateModal(payload.view.id, payload.view.hash, updatedModal);
+                return;
+            }
+
+            // ── One-time modal: any date/time field changed ────────────────
+            const isOneTimeModal = callbackId === "add_one_time_event" || callbackId.startsWith("edit_one_time_event_");
+            if (isOneTimeModal && ["start_date", "start_time", "end_date", "end_time"].includes(action.action_id)) {
+                const currentValues = {
+                    startDate:   sv.start_date_block?.start_date?.selected_date             || null,
+                    startTime:   sv.start_time_block?.start_time?.selected_option?.value    || null,
+                    endDate:     sv.end_date_block?.end_date?.selected_date                 || null,
+                    endTime:     sv.end_time_block?.end_time?.selected_option?.value        || null,
+                    sendMessage: (sv.send_message_block?.send_message?.selected_options || []).some(o => o.value === "send_message")
+                };
+
+                let existingEvent = null;
+                if (callbackId.startsWith("edit_one_time_event_")) {
+                    const eventId = callbackId.replace("edit_one_time_event_", "");
+                    existingEvent = await getEventById(eventId);
+                }
+
+                console.info("One-time modal date/time changed:", currentValues);
+                const updatedModal = buildOneTimeEventModal(existingEvent, currentValues);
                 await updateModal(payload.view.id, payload.view.hash, updatedModal);
                 return;
             }
@@ -772,6 +848,31 @@ async function handleModalSubmission(payload) {
     } else {
         console.error("Unknown callback_id:", callbackId);
         return;
+    }
+
+    // ── Datetime validation ───────────────────────────────────────────────
+    if (parsedValues.eventType === "one_time") {
+        if (isEndBeforeStart(parsedValues.startDate, parsedValues.startTime, parsedValues.endDate, parsedValues.endTime)) {
+            console.warn("Validation failed: end datetime is before start datetime");
+            return {
+                response_action: "errors",
+                errors: {
+                    end_date_block: "End date/time cannot be earlier than start date/time.",
+                    end_time_block: "End date/time cannot be earlier than start date/time."
+                }
+            };
+        }
+    } else if (parsedValues.eventType === "recurring") {
+        // Same date for recurring — just compare times
+        if (parsedValues.startTime && parsedValues.endTime && parsedValues.endTime <= parsedValues.startTime) {
+            console.warn("Validation failed: end time is not after start time");
+            return {
+                response_action: "errors",
+                errors: {
+                    end_time_block: "End time must be later than start time."
+                }
+            };
+        }
     }
 
     const now = new Date().toISOString();
@@ -867,7 +968,15 @@ export const slackEventsHandler = async (event) => {
 
             if (payload.type === "view_submission") {
                 try {
-                    await handleModalSubmission(payload);
+                    const validationResponse = await handleModalSubmission(payload);
+                    if (validationResponse) {
+                        // Return Slack validation errors to keep the modal open
+                        return {
+                            statusCode: 200,
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify(validationResponse)
+                        };
+                    }
                 } catch (err) {
                     console.error("Error handling modal submission:", err);
                 }

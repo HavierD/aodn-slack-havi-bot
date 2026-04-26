@@ -18,7 +18,7 @@ confirm_changeset = true
 resolve_s3 = true
 s3_prefix = "aodn-slack-havi-bot"
 region = "ap-southeast-2"
-parameter_overrides = "Environment=\"dev\""
+parameter_overrides = "Environment=\"dev\" NotificationChannel=\"C0AUN44711B\""
 image_repositories = []
 tags = "AutoOff=False"
 

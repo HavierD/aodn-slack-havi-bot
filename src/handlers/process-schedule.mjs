@@ -27,6 +27,46 @@ const INTERVAL_DAYS = {
 // removed artificial sleeps to speed up processing
 
 /**
+ * Build the human-friendly notification text for a status event.
+ *
+ * Working remotely / Out sick:
+ *   - Default:              "<name> is WFH today"  /  "<name> is off sick today"
+ *   - Start after 10:00:   "…from <startTime>"
+ *   - End before 16:00:    "…until <endTime>"
+ *   - Both conditions:     "…from <startTime> until <endTime>"
+ *
+ * Vacationing:
+ *   - Different dates:     "<name> is on leave from <startDate> to <endDate>"
+ *   - Same day / recurring: "<name> is on leave today"
+ */
+function buildNotificationText(displayName, statusType, startDate, startTime, endDate, endTime) {
+    const name = `*${displayName}*`;
+
+    if (statusType === 'working_remotely' || statusType === 'out_sick') {
+        const label     = statusType === 'working_remotely' ? 'WFH' : 'off sick';
+        const startLate = startTime && startTime > '10:00';
+        const endEarly  = endTime   && endTime   < '16:00';
+
+        if (startLate && endEarly) return `${name} is ${label} from ${startTime} until ${endTime}`;
+        if (startLate)             return `${name} is ${label} from ${startTime}`;
+        if (endEarly)              return `${name} is ${label} until ${endTime}`;
+        return `${name} is ${label} today`;
+    }
+
+    if (statusType === 'vacationing') {
+        if (startDate && endDate && startDate !== endDate) {
+            return `${name} is on leave from ${startDate} to ${endDate}`;
+        }
+        return `${name} is on leave today`;
+    }
+
+    // Fallback for any future / unknown status types
+    const cfg     = STATUS_CONFIG[statusType] ?? { text: statusType ?? 'Away', emoji: '' };
+    const endPart = (endDate || endTime) ? ` — until ${[endDate, endTime].filter(Boolean).join(' ')}` : '';
+    return `${name} ${cfg.text} ${cfg.emoji}${endPart}`.trim();
+}
+
+/**
  * Round the current time to the nearest 30-minute slot.
  *   10:21 → 10:30   (diff to :30 = 9, diff to :00 = 21 → closer to :30)
  *   10:09 → 10:00   (diff to :00 = 9, diff to :30 = 21 → closer to :00)
@@ -164,14 +204,17 @@ export const processScheduleHandler = async (event) => {
             try {
                 await setUserSlackStatus(item.userId, cfg.text, cfg.emoji, expiration);
                 console.info(`Slack status set for user ${item.userId}: "${cfg.text}", expires ${expiration}`);
-                // Optionally send a notification to the configured channel when the event starts
                 if (item.sendMessage) {
                     try {
+                        /** @type {string} */
                         const displayName = await getUserDisplayName(item.userId);
-                        const endPart = (item.endDate || item.endTime) ? ` — until ${item.endDate || ''} ${item.endTime || ''}`.trim() : '';
-                        const text = `*${displayName}* ${cfg.text} ${cfg.emoji}${endPart}`.trim();
+                        const text = buildNotificationText(
+                            displayName, item.statusType,
+                            item.startDate, item.startTime,
+                            item.endDate,   item.endTime
+                        );
                         await sendSlackMessage(NOTIFICATION_CHANNEL, text);
-                        console.info(`Notification sent to ${NOTIFICATION_CHANNEL} for user ${item.userId}`);
+                        console.info(`Notification sent to ${NOTIFICATION_CHANNEL} for user ${item.userId}: ${text}`);
                     } catch (err) {
                         console.error(`Failed to send notification to channel ${NOTIFICATION_CHANNEL} for user ${item.userId}:`, err.message);
                     }
